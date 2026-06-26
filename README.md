@@ -12,14 +12,13 @@ pinned: false
 
 Architecture multi-agents (pattern Supervisor) pour le secteur santé — LangGraph, FastAPI, monitoring (Correlation ID, latence, tokens), CI/CD, conteneurisation Docker.
 
-Voir [AGENT_CARD.md](AGENT_CARD.md) et [RUNBOOK.md](RUNBOOK.md) pour la documentation complète.
+Voir [AGENT_CARD.md](AGENT_CARD.md), [RUNBOOK.md](RUNBOOK.md) et [Documentation Technique](https://github.com/elhantatiichraq16-web/medical-supervisor-agent/blob/master/DOCUMENTATION_TECHNIQUE.md) pour la documentation complète.
 
 ## Déploiement en production (Railway)
 
 - **Interface utilisateur :** https://med-agent.up.railway.app/ui
 - **Dashboard de monitoring :** https://med-agent.up.railway.app/dashboard
 - **Documentation API (Swagger) :** https://med-agent.up.railway.app/docs
-- **Documentation Technique**: https://github.com/elhantatiichraq16-web/medical-supervisor-agent/blob/master/DOCUMENTATION_TECHNIQUE.md
 
 > Le monitoring est stocké de façon **persistante dans MongoDB Atlas** (base `medical_supervisor_agent`, collection `runs`) — l'historique survit désormais aux redémarrages et redéploiements du service. Lance le test ci-dessous pour ajouter une exécution et voir le dashboard se peupler.
 
