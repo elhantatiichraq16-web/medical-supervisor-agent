@@ -14,6 +14,11 @@ Architecture multi-agents (pattern Supervisor) pour le secteur santé — LangGr
 
 Voir [AGENT_CARD.md](AGENT_CARD.md) et [RUNBOOK.md](RUNBOOK.md) pour la documentation complète.
 
+## Déploiement en production (Railway)
+
+- **Dashboard de monitoring :** https://med-agent.up.railway.app/dashboard
+- **Documentation API (Swagger) :** https://med-agent.up.railway.app/docs
+
 ## Endpoints
 
 - `POST /diagnose` — lance le diagnostic, s'arrête avant validation humaine
