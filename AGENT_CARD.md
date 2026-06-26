@@ -4,7 +4,7 @@
 - **Nom :** Medical-Supervisor-Agent
 - **Version :** 1.1.0
 - **Type :** Système multi-agent (pattern Supervisor) avec orchestration LangGraph
-- **Auteur :** Ichrak Elhantati
+- **Auteur :** Ichrak Elhantati, Fatima Ezzahra ELMENOUN, Hassan Boulahfa
 - **Date de création :** 2026-06-24
 - **Dernière mise à jour :** 2026-06-26 (ajout monitoring, API, CI/CD, déploiement)
 - **Fichiers source :** `supervisor_langgraph.py` (graphe + logique métier), `api.py` (API FastAPI), `monitoring.py` (Correlation ID / observabilité)
