@@ -51,6 +51,7 @@ END
 ## API
 | Méthode | Route | Description |
 |---|---|---|
+| `GET` | `/ui` | Interface utilisateur (formulaire symptômes → rapport → approbation → alerte) — `ui.py` |
 | `POST` | `/diagnose` | Lance le graphe (Supervisor + 3 sous-agents + rapport), s'arrête avant validation humaine |
 | `POST` | `/diagnose/{thread_id}/approve` | Transmet la décision humaine (`approved`, `comment`) et termine l'exécution (audit, routage, alerte) |
 | `GET` | `/health` | Sonde de disponibilité (utilisée par Railway) |
