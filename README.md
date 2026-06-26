@@ -16,10 +16,11 @@ Voir [AGENT_CARD.md](AGENT_CARD.md) et [RUNBOOK.md](RUNBOOK.md) pour la document
 
 ## Déploiement en production (Railway)
 
+- **Interface utilisateur :** https://med-agent.up.railway.app/ui
 - **Dashboard de monitoring :** https://med-agent.up.railway.app/dashboard
 - **Documentation API (Swagger) :** https://med-agent.up.railway.app/docs
 
-> Le monitoring est stocké dans **MongoDB** (persistant, survit aux redéploiements) si `MONGODB_URI` est configurée — sinon il repose sur un cache en mémoire qui repart à zéro à chaque redémarrage. Lance le test ci-dessous pour peupler le dashboard.
+> Le monitoring est stocké de façon **persistante dans MongoDB Atlas** (base `medical_supervisor_agent`, collection `runs`) — l'historique survit désormais aux redémarrages et redéploiements du service. Lance le test ci-dessous pour ajouter une exécution et voir le dashboard se peupler.
 
 ## Comment fonctionne l'agent
 
@@ -36,7 +37,9 @@ Chaque exécution reçoit un `correlation_id` unique, et chaque nœud du graphe 
 
 ## Comment tester (exemple complet)
 
-Avec `curl` (ou directement dans `/docs`, en cliquant "Try it out" sur chaque route) :
+**Le plus simple :** ouvre https://med-agent.up.railway.app/ui, tape les symptômes dans le formulaire, clique "Envoyer", puis "Approuver" ou "Refuser".
+
+Sinon, avec `curl` (ou directement dans `/docs`, en cliquant "Try it out" sur chaque route) :
 
 ```bash
 # 1. Lancer un diagnostic
@@ -57,6 +60,7 @@ La réponse de l'étape 2 contient `risk_label` ("Haut" ou "Bas") et `final_aler
 
 ## Endpoints
 
+- `GET /ui` — interface utilisateur (formulaire symptômes → rapport → approbation → alerte)
 - `POST /diagnose` — lance le diagnostic, s'arrête avant validation humaine
 - `POST /diagnose/{thread_id}/approve` — valide (`approved: true/false`) et termine l'exécution
 - `GET /health` — sonde de disponibilité
@@ -65,8 +69,17 @@ La réponse de l'étape 2 contient `risk_label` ("Haut" ou "Bas") et `final_aler
 - `GET /runs` — liste des exécutions récentes
 - `GET /runs/{correlation_id}` — détail nœud par nœud d'une exécution
 
+## Stockage du monitoring (MongoDB)
+
+Chaque exécution est enregistrée dans **MongoDB Atlas** :
+- **Base de données :** `medical_supervisor_agent`
+- **Collection :** `runs`
+- **Index :** `correlation_id` (unique)
+
+Si `MONGODB_URI` est absente ou la connexion échoue, le service bascule automatiquement (et silencieusement) sur un cache en mémoire — utile en développement local sans base de données, mais non persistant.
+
 ## Variables d'environnement
 
 - `GROQ_API_KEY` (requise) — clé API Groq (console.groq.com/keys), configurée comme variable d'environnement dans Railway (onglet Variables), jamais committée dans Git.
-- `MONGODB_URI` (optionnelle, recommandée) — chaîne de connexion MongoDB Atlas (`mongodb+srv://...`) pour un monitoring persistant. Sans elle, le monitoring fonctionne quand même mais en mémoire (perdu au redémarrage).
+- `MONGODB_URI` (recommandée, déjà configurée en production) — chaîne de connexion MongoDB Atlas (`mongodb+srv://...`) pour un monitoring persistant qui survit aux redéploiements.
 - `MONGODB_DB` (optionnelle) — nom de la base MongoDB à utiliser (défaut : `medical_supervisor_agent`).
