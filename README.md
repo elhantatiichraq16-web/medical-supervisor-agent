@@ -19,6 +19,7 @@ Voir [AGENT_CARD.md](AGENT_CARD.md) et [RUNBOOK.md](RUNBOOK.md) pour la document
 - **Interface utilisateur :** https://med-agent.up.railway.app/ui
 - **Dashboard de monitoring :** https://med-agent.up.railway.app/dashboard
 - **Documentation API (Swagger) :** https://med-agent.up.railway.app/docs
+- **Documentation Technique**: https://github.com/elhantatiichraq16-web/medical-supervisor-agent/blob/master/DOCUMENTATION_TECHNIQUE.md
 
 > Le monitoring est stocké de façon **persistante dans MongoDB Atlas** (base `medical_supervisor_agent`, collection `runs`) — l'historique survit désormais aux redémarrages et redéploiements du service. Lance le test ci-dessous pour ajouter une exécution et voir le dashboard se peupler.
 
