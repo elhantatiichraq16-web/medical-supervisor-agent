@@ -64,3 +64,19 @@ def test_runs_list_endpoint():
 def test_run_detail_404_for_unknown_correlation_id():
     response = client.get("/runs/unknown-id")
     assert response.status_code == 404
+
+
+def test_metrics_endpoint_returns_aggregated_shape():
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    body = response.json()
+    assert "nb_runs" in body
+    assert "total_tokens" in body
+    assert "per_node" in body
+
+
+def test_dashboard_endpoint_returns_html():
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Dashboard de monitoring" in response.text

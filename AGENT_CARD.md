@@ -45,7 +45,7 @@ END
 - Point d'arrêt humain obligatoire avant diffusion du rapport (`human_approved`, `human_comment`)
 - Audit automatique de cohérence avant le routage final
 - Journalisation complète de chaque nœud (entrée/sortie/timestamp) via `log_node()`
-- **Observabilité / monitoring :** chaque exécution reçoit un `correlation_id` (UUID) unique, propagé à tous les nœuds du graphe (`monitoring.py`). Chaque nœud loggue son statut (`ok`/`error`) et sa latence (`duration_ms`), consultable via l'API (`GET /runs/{correlation_id}`) ou en JSONL (`monitoring_logs/`).
+- **Observabilité / monitoring :** chaque exécution reçoit un `correlation_id` (UUID) unique, propagé à tous les nœuds du graphe (`monitoring.py`). Chaque nœud loggue son statut (`ok`/`error`), sa latence (`duration_ms`) et les tokens Groq consommés (`input_tokens`/`output_tokens`/`total_tokens`), consultable via l'API (`GET /runs/{correlation_id}`, `GET /metrics`, `GET /dashboard`) ou en JSONL (`monitoring_logs/`).
 - **Exposition API :** l'agent est accessible via une API FastAPI (`api.py`) qui orchestre le flux human-in-the-loop en deux appels (`POST /diagnose` puis `POST /diagnose/{thread_id}/approve`).
 
 ## API
@@ -56,6 +56,8 @@ END
 | `GET` | `/health` | Sonde de disponibilité (utilisée par Render) |
 | `GET` | `/runs` | Liste des exécutions (monitoring) |
 | `GET` | `/runs/{correlation_id}` | Détail d'une exécution : événements par nœud, statut, durée |
+| `GET` | `/metrics` | Agrégation JSON : latence et tokens par nœud, compteurs de statuts |
+| `GET` | `/dashboard` | Tableau de bord HTML (auto-refresh 15s) : latence, tokens, Correlation ID — `dashboard.py` |
 
 ## Tests & CI/CD
 - Tests automatisés (`pytest`, dossier `tests/`) : nœuds du graphe, monitoring, et endpoints API — LLM Groq mocké pour ne pas dépendre du réseau/quota.

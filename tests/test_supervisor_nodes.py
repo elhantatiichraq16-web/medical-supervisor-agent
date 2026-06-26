@@ -132,3 +132,40 @@ def test_extract_json_parses_embedded_json():
 
 def test_extract_json_returns_empty_dict_on_invalid_input():
     assert sup.extract_json("pas de json ici") == {}
+
+
+def test_extract_tokens_reads_usage_metadata():
+    class FakeResponse:
+        usage_metadata = {"input_tokens": 12, "output_tokens": 7, "total_tokens": 19}
+        response_metadata = {}
+
+    tokens = sup.extract_tokens(FakeResponse())
+    assert tokens == {"input_tokens": 12, "output_tokens": 7, "total_tokens": 19}
+
+
+def test_extract_tokens_returns_empty_when_unavailable():
+    class FakeResponse:
+        usage_metadata = None
+        response_metadata = {}
+
+    assert sup.extract_tokens(FakeResponse()) == {}
+
+
+def test_monitored_decorator_extracts_and_strips_last_tokens(monkeypatch):
+    """Le wrapper @monitored doit extraire _last_tokens du dict retourne par
+    le noeud (pour le monitoring) et NE PAS le laisser dans le state final."""
+    captured = {}
+
+    def fake_log_event(correlation_id, node, status, duration_ms, detail="", tokens=None):
+        captured["tokens"] = tokens
+
+    monkeypatch.setattr(sup.monitoring, "log_event", fake_log_event)
+
+    @sup.monitored("fake_node")
+    def fake_node(state):
+        return {"some_field": "value", "_last_tokens": {"input_tokens": 3, "output_tokens": 4, "total_tokens": 7}}
+
+    result = fake_node(base_state())
+
+    assert "_last_tokens" not in result
+    assert captured["tokens"] == {"input_tokens": 3, "output_tokens": 4, "total_tokens": 7}

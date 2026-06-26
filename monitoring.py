@@ -42,13 +42,15 @@ def start_run(correlation_id: str, user_input: str) -> None:
     })
 
 
-def log_event(correlation_id: str, node: str, status: str, duration_ms: float, detail: str = "") -> None:
+def log_event(correlation_id: str, node: str, status: str, duration_ms: float, detail: str = "",
+              tokens: dict | None = None) -> None:
     event = {
         "correlation_id": correlation_id,
         "node": node,
         "status": status,
         "duration_ms": round(duration_ms, 2),
         "detail": detail[:300],
+        "tokens": tokens or {},
         "timestamp": _now(),
     }
     with _lock:
@@ -88,6 +90,44 @@ def list_runs() -> list:
             }
             for r in _runs.values()
         ]
+
+
+def get_metrics() -> dict:
+    """Agrege latence et tokens sur l'ensemble des runs connus, par noeud."""
+    with _lock:
+        runs = list(_runs.values())
+
+    per_node: dict = {}
+    total_tokens = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    status_counts = {"completed": 0, "rejected": 0, "running": 0}
+
+    for run in runs:
+        status_counts[run["status"]] = status_counts.get(run["status"], 0) + 1
+        for event in run["events"]:
+            node = event["node"]
+            stats = per_node.setdefault(node, {
+                "calls": 0, "errors": 0, "duration_ms_total": 0.0,
+                "input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
+            })
+            stats["calls"] += 1
+            if event["status"] == "error":
+                stats["errors"] += 1
+            stats["duration_ms_total"] += event["duration_ms"]
+            tokens = event.get("tokens") or {}
+            for key in ("input_tokens", "output_tokens", "total_tokens"):
+                stats[key] += tokens.get(key, 0)
+                total_tokens[key] += tokens.get(key, 0)
+
+    for node, stats in per_node.items():
+        stats["duration_ms_avg"] = round(stats["duration_ms_total"] / stats["calls"], 2) if stats["calls"] else 0
+        stats["duration_ms_total"] = round(stats["duration_ms_total"], 2)
+
+    return {
+        "nb_runs": len(runs),
+        "status_counts": status_counts,
+        "total_tokens": total_tokens,
+        "per_node": per_node,
+    }
 
 
 def _now() -> str:

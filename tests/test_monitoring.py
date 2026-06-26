@@ -30,3 +30,19 @@ def test_list_runs_includes_started_run():
     monitoring.start_run(correlation_id, "patient test 2")
     ids = [r["correlation_id"] for r in monitoring.list_runs()]
     assert correlation_id in ids
+
+
+def test_get_metrics_aggregates_tokens_and_latency_per_node():
+    correlation_id = monitoring.new_correlation_id()
+    monitoring.start_run(correlation_id, "patient test 3")
+    monitoring.log_event(correlation_id, "metrics_test_node", "ok", 100.0,
+                          tokens={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15})
+    monitoring.log_event(correlation_id, "metrics_test_node", "error", 50.0)
+    monitoring.end_run(correlation_id, "completed", {})
+
+    metrics = monitoring.get_metrics()
+    node_stats = metrics["per_node"]["metrics_test_node"]
+    assert node_stats["calls"] == 2
+    assert node_stats["errors"] == 1
+    assert node_stats["total_tokens"] == 15
+    assert node_stats["duration_ms_avg"] == 75.0

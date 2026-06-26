@@ -7,14 +7,18 @@ Flux :
   GET  /health                      -> sonde de disponibilite (utilisee par Render)
   GET  /runs/{correlation_id}       -> details de monitoring d'une execution
   GET  /runs                        -> liste des executions recentes
+  GET  /metrics                     -> agregation latence/tokens/statuts (JSON)
+  GET  /dashboard                   -> tableau de bord HTML (latence, tokens, Correlation ID)
 """
 
 import uuid
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 import monitoring
+from dashboard import render_dashboard
 from supervisor_langgraph import start_diagnosis, approve_diagnosis
 
 app = FastAPI(
@@ -68,3 +72,13 @@ def run_detail(correlation_id: str):
     if run is None:
         raise HTTPException(status_code=404, detail="correlation_id inconnu.")
     return run
+
+
+@app.get("/metrics")
+def metrics():
+    return monitoring.get_metrics()
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    return render_dashboard(monitoring.get_metrics(), monitoring.list_runs())

@@ -107,6 +107,10 @@ class SupervisorState(TypedDict):
     risk_label:   str   # "Haut" ou "Bas"
     final_alert:  str   # message URGENT ou PAS URGENT
 
+    # monitoring — tokens consommes par le dernier appel LLM d'un noeud
+    # (reducer keep_last requis : symptoms/risk/history s'executent en parallele)
+    _last_tokens: Annotated[dict, keep_last]
+
 
 # ===========================================================
 # 2. MODELE GROQ
@@ -256,9 +260,25 @@ def step(tag: str, msg: str):
     print(f"\n  [{tag}] {msg}")
 
 
+def extract_tokens(response) -> dict:
+    """Extrait input/output/total tokens d'une reponse LangChain (usage_metadata),
+    avec repli sur response_metadata si absent. Retourne {} si indisponible."""
+    usage = getattr(response, "usage_metadata", None) or {}
+    if not usage:
+        usage = (getattr(response, "response_metadata", None) or {}).get("token_usage", {})
+    if not usage:
+        return {}
+    return {
+        "input_tokens": usage.get("input_tokens", usage.get("prompt_tokens", 0)),
+        "output_tokens": usage.get("output_tokens", usage.get("completion_tokens", 0)),
+        "total_tokens": usage.get("total_tokens", 0),
+    }
+
+
 def monitored(node_name: str):
-    """Decorateur : mesure la duree d'un noeud et l'enregistre dans le
-    monitoring (Correlation ID), en plus du journal JSON existant."""
+    """Decorateur : mesure la duree d'un noeud, capture les tokens consommes
+    (si le noeud en a stocke via state['_last_tokens']) et enregistre tout
+    dans le monitoring (Correlation ID), en plus du journal JSON existant."""
     def decorator(fn):
         def wrapper(state: SupervisorState):
             correlation_id = state.get("correlation_id", "")
@@ -266,7 +286,8 @@ def monitored(node_name: str):
             try:
                 result = fn(state)
                 duration_ms = (time.perf_counter() - t0) * 1000
-                monitoring.log_event(correlation_id, node_name, "ok", duration_ms)
+                tokens = result.pop("_last_tokens", {}) if isinstance(result, dict) else {}
+                monitoring.log_event(correlation_id, node_name, "ok", duration_ms, tokens=tokens)
                 return result
             except Exception as exc:
                 duration_ms = (time.perf_counter() - t0) * 1000
@@ -315,6 +336,7 @@ def supervisor_node(state: SupervisorState) -> SupervisorState:
         "activate_risk":     activate_risk,
         "activate_history":  activate_history,
         "supervisor_reason": reason,
+        "_last_tokens":      extract_tokens(response),
     }
 
 
@@ -333,7 +355,7 @@ def symptoms_node(state: SupervisorState) -> dict:
     ])
     print(f"         Extrait : {response.content[:80]}...")
     log_node("symptoms", {"user_input": state["user_input"]}, {"symptoms_result": response.content})
-    return {"symptoms_result": response.content}
+    return {"symptoms_result": response.content, "_last_tokens": extract_tokens(response)}
 
 
 @monitored("risk")
@@ -351,7 +373,7 @@ def risk_node(state: SupervisorState) -> dict:
     ])
     print(f"         Extrait : {response.content[:80]}...")
     log_node("risk", {"user_input": state["user_input"]}, {"risk_result": response.content})
-    return {"risk_result": response.content}
+    return {"risk_result": response.content, "_last_tokens": extract_tokens(response)}
 
 
 @monitored("history")
@@ -369,7 +391,7 @@ def history_node(state: SupervisorState) -> dict:
     ])
     print(f"         Extrait : {response.content[:80]}...")
     log_node("history", {"user_input": state["user_input"]}, {"history_result": response.content})
-    return {"history_result": response.content}
+    return {"history_result": response.content, "_last_tokens": extract_tokens(response)}
 
 
 @monitored("combine")
@@ -407,7 +429,7 @@ def response_node(state: SupervisorState) -> SupervisorState:
         {"combined_text": state.get("combined_text", "")},
         {"final_response": response.content}
     )
-    return {**state, "final_response": response.content}
+    return {**state, "final_response": response.content, "_last_tokens": extract_tokens(response)}
 
 
 @monitored("human_review")
@@ -438,7 +460,7 @@ def audit_node(state: SupervisorState) -> SupervisorState:
         {"final_response": state.get("final_response", "")},
         {"audit_result": response.content}
     )
-    return {**state, "audit_result": response.content}
+    return {**state, "audit_result": response.content, "_last_tokens": extract_tokens(response)}
 
 
 @monitored("risk_extractor")
@@ -462,7 +484,7 @@ def risk_extractor_node(state: SupervisorState) -> SupervisorState:
         {"audit_result": state.get("audit_result", "")},
         {"risk_label": label, "llm_raw": raw}
     )
-    return {**state, "risk_label": label}
+    return {**state, "risk_label": label, "_last_tokens": extract_tokens(response)}
 
 
 @monitored("high_risk_alert")
@@ -601,6 +623,7 @@ def start_diagnosis(user_message: str, thread_id: str) -> dict:
         "audit_result":      "",
         "risk_label":        "",
         "final_alert":       "",
+        "_last_tokens":      {},
     }
 
     for _ in graph.stream(initial, config, stream_mode="values"):
@@ -722,6 +745,7 @@ def run(user_message: str, thread_id: str, log_path: str, json_dir: str, mode: s
         "audit_result":      "",
         "risk_label":        "",
         "final_alert":       "",
+        "_last_tokens":      {},
     }
 
     # --- Phase 1 : jusqu'a l'interruption ---
