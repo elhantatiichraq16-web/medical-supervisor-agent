@@ -35,6 +35,12 @@ Voir [AGENT_CARD.md](AGENT_CARD.md) et [RUNBOOK.md](RUNBOOK.md) pour la document
 
 Chaque exécution reçoit un `correlation_id` unique, et chaque nœud du graphe est tracé (statut, latence, tokens Groq consommés) — visible sur `/dashboard` et `/runs/{correlation_id}`.
 
+### Diagramme BPMN
+
+![Diagramme BPMN du Medical Supervisor Agent](docs/images/bpmn_diagram.png)
+
+Fichier source : [medical_supervisor_agent.bpmn](medical_supervisor_agent.bpmn) (importable dans [bpmn.io](https://bpmn.io)).
+
 ## Comment tester (exemple complet)
 
 **Le plus simple :** ouvre https://med-agent.up.railway.app/ui, tape les symptômes dans le formulaire, clique "Envoyer", puis "Approuver" ou "Refuser".

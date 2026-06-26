@@ -58,7 +58,7 @@ SmartRouter
        END
 ```
 
-Le diagramme BPMN complet est disponible dans [medical_supervisor_agent.bpmn](medical_supervisor_agent.bpmn) (importable dans [bpmn.io](https://bpmn.io)).
+Le diagramme BPMN complet est disponible dans [medical_supervisor_agent.bpmn](medical_supervisor_agent.bpmn) (importable dans [bpmn.io](https://bpmn.io)) — voir capture en section 9.
 
 ### Stack technique
 
@@ -381,3 +381,7 @@ Pour tester l'instance déployée en production, voir la section "Comment tester
 ## 9. Diagramme BPMN
 
 Le flux métier complet (Patient → Supervisor → agents parallèles → validation humaine → audit → routage → alerte) est modélisé dans [medical_supervisor_agent.bpmn](medical_supervisor_agent.bpmn), importable directement dans [bpmn.io](https://bpmn.io) pour visualisation.
+
+![Diagramme BPMN du Medical Supervisor Agent](docs/images/bpmn_diagram.png)
+
+*Capture réelle du diagramme ouvert dans bpmn.io, montrant : Patient → Supervisor Agent → fork parallèle (Symptoms / Risk / Medical History) → join → Combine → Healthcare Response Agent → Human-in-the-loop (gateway Oui/Non) → Audit Agent → Risk Extractor → SmartRouter (Haut/Bas) → alertes finales (High Risk Alert / Low Risk Alert).*
