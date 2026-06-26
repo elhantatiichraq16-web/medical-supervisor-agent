@@ -14,7 +14,7 @@ Flux :
 import uuid
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 import monitoring
@@ -36,6 +36,11 @@ class DiagnoseRequest(BaseModel):
 class ApproveRequest(BaseModel):
     approved: bool
     comment: str = ""
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/dashboard")
 
 
 @app.get("/health")

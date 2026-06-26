@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  id="Definitions_MedicalSupervisor"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:process id="Process_MedicalSupervisorAgent" name="Medical Supervisor Agent" isExecutable="false">
+
+    <bpmn:startEvent id="StartEvent_Patient" name="Patient soumet sa description">
+      <bpmn:outgoing>Flow_Start_Supervisor</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:task id="Task_Supervisor" name="Supervisor Agent&#10;decide quels agents activer">
+      <bpmn:incoming>Flow_Start_Supervisor</bpmn:incoming>
+      <bpmn:outgoing>Flow_Supervisor_ForkGateway</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:parallelGateway id="Gateway_Fork" name="Fork">
+      <bpmn:incoming>Flow_Supervisor_ForkGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Fork_Symptoms</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Fork_Risk</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Fork_History</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_Symptoms" name="Symptoms Agent&#10;analyse les symptomes">
+      <bpmn:incoming>Flow_Fork_Symptoms</bpmn:incoming>
+      <bpmn:outgoing>Flow_Symptoms_Join</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_Risk" name="Risk Agent&#10;evalue le niveau de risque">
+      <bpmn:incoming>Flow_Fork_Risk</bpmn:incoming>
+      <bpmn:outgoing>Flow_Risk_Join</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_History" name="Medical History Agent&#10;analyse les antecedents">
+      <bpmn:incoming>Flow_Fork_History</bpmn:incoming>
+      <bpmn:outgoing>Flow_History_Join</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:parallelGateway id="Gateway_Join" name="Join">
+      <bpmn:incoming>Flow_Symptoms_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Risk_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_History_Join</bpmn:incoming>
+      <bpmn:outgoing>Flow_Join_Combine</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <bpmn:task id="Task_Combine" name="Combine&#10;fusionne les 3 analyses">
+      <bpmn:incoming>Flow_Join_Combine</bpmn:incoming>
+      <bpmn:outgoing>Flow_Combine_Response</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_Response" name="Healthcare Response Agent&#10;genere le rapport structure">
+      <bpmn:incoming>Flow_Combine_Response</bpmn:incoming>
+      <bpmn:outgoing>Flow_Response_HumanReview</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:userTask id="Task_HumanReview" name="Human-in-the-loop&#10;validation du rapport par un humain">
+      <bpmn:incoming>Flow_Response_HumanReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_HumanReview_ApprovalGateway</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Approval" name="Rapport approuve ?">
+      <bpmn:incoming>Flow_HumanReview_ApprovalGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approval_Audit</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Approval_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Execution arretee&#10;(rapport refuse)">
+      <bpmn:incoming>Flow_Approval_Rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:task id="Task_Audit" name="Audit Agent&#10;verifie la coherence du risque">
+      <bpmn:incoming>Flow_Approval_Audit</bpmn:incoming>
+      <bpmn:outgoing>Flow_Audit_RiskExtractor</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_RiskExtractor" name="Risk Extractor&#10;extrait Haut ou Bas">
+      <bpmn:incoming>Flow_Audit_RiskExtractor</bpmn:incoming>
+      <bpmn:outgoing>Flow_RiskExtractor_SmartRouter</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:exclusiveGateway id="Gateway_SmartRouter" name="Niveau de risque ?">
+      <bpmn:incoming>Flow_RiskExtractor_SmartRouter</bpmn:incoming>
+      <bpmn:outgoing>Flow_Router_High</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Router_Low</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:task id="Task_HighRiskAlert" name="High Risk Alert&#10;URGENT : consulter un medecin">
+      <bpmn:incoming>Flow_Router_High</bpmn:incoming>
+      <bpmn:outgoing>Flow_HighRisk_End</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:task id="Task_LowRiskAlert" name="Low Risk Alert&#10;PAS URGENT">
+      <bpmn:incoming>Flow_Router_Low</bpmn:incoming>
+      <bpmn:outgoing>Flow_LowRisk_End</bpmn:outgoing>
+    </bpmn:task>
+
+    <bpmn:endEvent id="EndEvent_HighRisk" name="Fin&#10;(alerte urgente envoyee)">
+      <bpmn:incoming>Flow_HighRisk_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_LowRisk" name="Fin&#10;(alerte non urgente envoyee)">
+      <bpmn:incoming>Flow_LowRisk_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_Start_Supervisor" sourceRef="StartEvent_Patient" targetRef="Task_Supervisor" />
+    <bpmn:sequenceFlow id="Flow_Supervisor_ForkGateway" sourceRef="Task_Supervisor" targetRef="Gateway_Fork" />
+    <bpmn:sequenceFlow id="Flow_Fork_Symptoms" sourceRef="Gateway_Fork" targetRef="Task_Symptoms" />
+    <bpmn:sequenceFlow id="Flow_Fork_Risk" sourceRef="Gateway_Fork" targetRef="Task_Risk" />
+    <bpmn:sequenceFlow id="Flow_Fork_History" sourceRef="Gateway_Fork" targetRef="Task_History" />
+    <bpmn:sequenceFlow id="Flow_Symptoms_Join" sourceRef="Task_Symptoms" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Risk_Join" sourceRef="Task_Risk" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_History_Join" sourceRef="Task_History" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Join_Combine" sourceRef="Gateway_Join" targetRef="Task_Combine" />
+    <bpmn:sequenceFlow id="Flow_Combine_Response" sourceRef="Task_Combine" targetRef="Task_Response" />
+    <bpmn:sequenceFlow id="Flow_Response_HumanReview" sourceRef="Task_Response" targetRef="Task_HumanReview" />
+    <bpmn:sequenceFlow id="Flow_HumanReview_ApprovalGateway" sourceRef="Task_HumanReview" targetRef="Gateway_Approval" />
+    <bpmn:sequenceFlow id="Flow_Approval_Audit" name="Oui" sourceRef="Gateway_Approval" targetRef="Task_Audit" />
+    <bpmn:sequenceFlow id="Flow_Approval_Rejected" name="Non" sourceRef="Gateway_Approval" targetRef="EndEvent_Rejected" />
+    <bpmn:sequenceFlow id="Flow_Audit_RiskExtractor" sourceRef="Task_Audit" targetRef="Task_RiskExtractor" />
+    <bpmn:sequenceFlow id="Flow_RiskExtractor_SmartRouter" sourceRef="Task_RiskExtractor" targetRef="Gateway_SmartRouter" />
+    <bpmn:sequenceFlow id="Flow_Router_High" name="Haut" sourceRef="Gateway_SmartRouter" targetRef="Task_HighRiskAlert" />
+    <bpmn:sequenceFlow id="Flow_Router_Low" name="Bas" sourceRef="Gateway_SmartRouter" targetRef="Task_LowRiskAlert" />
+    <bpmn:sequenceFlow id="Flow_HighRisk_End" sourceRef="Task_HighRiskAlert" targetRef="EndEvent_HighRisk" />
+    <bpmn:sequenceFlow id="Flow_LowRisk_End" sourceRef="Task_LowRiskAlert" targetRef="EndEvent_LowRisk" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_MedicalSupervisorAgent">
+
+      <bpmndi:BPMNShape id="StartEvent_Patient_di" bpmnElement="StartEvent_Patient">
+        <dc:Bounds x="152" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="120" y="318" width="100" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Supervisor_di" bpmnElement="Task_Supervisor">
+        <dc:Bounds x="240" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_Fork_di" bpmnElement="Gateway_Fork" isMarkerVisible="true">
+        <dc:Bounds x="395" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="406" y="328" width="28" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Symptoms_di" bpmnElement="Task_Symptoms">
+        <dc:Bounds x="500" y="120" width="120" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Risk_di" bpmnElement="Task_Risk">
+        <dc:Bounds x="500" y="260" width="120" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_History_di" bpmnElement="Task_History">
+        <dc:Bounds x="500" y="400" width="120" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join" isMarkerVisible="true">
+        <dc:Bounds x="675" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="688" y="328" width="28" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Combine_di" bpmnElement="Task_Combine">
+        <dc:Bounds x="780" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Response_di" bpmnElement="Task_Response">
+        <dc:Bounds x="935" y="260" width="120" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_HumanReview_di" bpmnElement="Task_HumanReview">
+        <dc:Bounds x="1110" y="260" width="120" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_Approval_di" bpmnElement="Gateway_Approval" isMarkerVisible="true">
+        <dc:Bounds x="1285" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1262" y="245" width="96" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
+        <dc:Bounds x="1292" y="412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1260" y="455" width="100" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Audit_di" bpmnElement="Task_Audit">
+        <dc:Bounds x="1390" y="260" width="110" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_RiskExtractor_di" bpmnElement="Task_RiskExtractor">
+        <dc:Bounds x="1550" y="260" width="120" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_SmartRouter_di" bpmnElement="Gateway_SmartRouter" isMarkerVisible="true">
+        <dc:Bounds x="1725" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1701" y="245" width="98" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_HighRiskAlert_di" bpmnElement="Task_HighRiskAlert">
+        <dc:Bounds x="1830" y="120" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_LowRiskAlert_di" bpmnElement="Task_LowRiskAlert">
+        <dc:Bounds x="1830" y="400" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_HighRisk_di" bpmnElement="EndEvent_HighRisk">
+        <dc:Bounds x="2010" y="142" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1978" y="185" width="100" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_LowRisk_di" bpmnElement="EndEvent_LowRisk">
+        <dc:Bounds x="2010" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1978" y="465" width="100" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Flow_Start_Supervisor_di" bpmnElement="Flow_Start_Supervisor">
+        <di:waypoint x="188" y="300" />
+        <di:waypoint x="240" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Supervisor_ForkGateway_di" bpmnElement="Flow_Supervisor_ForkGateway">
+        <di:waypoint x="340" y="300" />
+        <di:waypoint x="395" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Fork_Symptoms_di" bpmnElement="Flow_Fork_Symptoms">
+        <di:waypoint x="420" y="275" />
+        <di:waypoint x="420" y="160" />
+        <di:waypoint x="500" y="160" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Fork_Risk_di" bpmnElement="Flow_Fork_Risk">
+        <di:waypoint x="445" y="300" />
+        <di:waypoint x="500" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Fork_History_di" bpmnElement="Flow_Fork_History">
+        <di:waypoint x="420" y="325" />
+        <di:waypoint x="420" y="440" />
+        <di:waypoint x="500" y="440" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Symptoms_Join_di" bpmnElement="Flow_Symptoms_Join">
+        <di:waypoint x="620" y="160" />
+        <di:waypoint x="700" y="160" />
+        <di:waypoint x="700" y="275" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Risk_Join_di" bpmnElement="Flow_Risk_Join">
+        <di:waypoint x="620" y="300" />
+        <di:waypoint x="675" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_History_Join_di" bpmnElement="Flow_History_Join">
+        <di:waypoint x="620" y="440" />
+        <di:waypoint x="700" y="440" />
+        <di:waypoint x="700" y="325" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Join_Combine_di" bpmnElement="Flow_Join_Combine">
+        <di:waypoint x="725" y="300" />
+        <di:waypoint x="780" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Combine_Response_di" bpmnElement="Flow_Combine_Response">
+        <di:waypoint x="880" y="300" />
+        <di:waypoint x="935" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Response_HumanReview_di" bpmnElement="Flow_Response_HumanReview">
+        <di:waypoint x="1055" y="300" />
+        <di:waypoint x="1110" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_HumanReview_ApprovalGateway_di" bpmnElement="Flow_HumanReview_ApprovalGateway">
+        <di:waypoint x="1230" y="300" />
+        <di:waypoint x="1285" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Approval_Audit_di" bpmnElement="Flow_Approval_Audit">
+        <di:waypoint x="1335" y="300" />
+        <di:waypoint x="1390" y="300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1352" y="282" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Approval_Rejected_di" bpmnElement="Flow_Approval_Rejected">
+        <di:waypoint x="1310" y="325" />
+        <di:waypoint x="1310" y="430" />
+        <di:waypoint x="1292" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1316" y="375" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Audit_RiskExtractor_di" bpmnElement="Flow_Audit_RiskExtractor">
+        <di:waypoint x="1500" y="300" />
+        <di:waypoint x="1550" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_RiskExtractor_SmartRouter_di" bpmnElement="Flow_RiskExtractor_SmartRouter">
+        <di:waypoint x="1670" y="300" />
+        <di:waypoint x="1725" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Router_High_di" bpmnElement="Flow_Router_High">
+        <di:waypoint x="1750" y="275" />
+        <di:waypoint x="1750" y="160" />
+        <di:waypoint x="1830" y="160" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1756" y="215" width="28" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Router_Low_di" bpmnElement="Flow_Router_Low">
+        <di:waypoint x="1750" y="325" />
+        <di:waypoint x="1750" y="440" />
+        <di:waypoint x="1830" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1756" y="380" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_HighRisk_End_di" bpmnElement="Flow_HighRisk_End">
+        <di:waypoint x="1960" y="160" />
+        <di:waypoint x="2010" y="160" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_LowRisk_End_di" bpmnElement="Flow_LowRisk_End">
+        <di:waypoint x="1960" y="440" />
+        <di:waypoint x="2010" y="440" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

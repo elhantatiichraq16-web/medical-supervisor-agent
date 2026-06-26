@@ -14,6 +14,12 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
+def test_root_redirects_to_dashboard():
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code in (302, 307)
+    assert response.headers["location"] == "/dashboard"
+
+
 def test_diagnose_returns_report_awaiting_review():
     fake_result = {
         "thread_id": "thread-1",

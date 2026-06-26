@@ -53,7 +53,7 @@ END
 |---|---|---|
 | `POST` | `/diagnose` | Lance le graphe (Supervisor + 3 sous-agents + rapport), s'arrête avant validation humaine |
 | `POST` | `/diagnose/{thread_id}/approve` | Transmet la décision humaine (`approved`, `comment`) et termine l'exécution (audit, routage, alerte) |
-| `GET` | `/health` | Sonde de disponibilité (utilisée par Render) |
+| `GET` | `/health` | Sonde de disponibilité (utilisée par Railway) |
 | `GET` | `/runs` | Liste des exécutions (monitoring) |
 | `GET` | `/runs/{correlation_id}` | Détail d'une exécution : événements par nœud, statut, durée |
 | `GET` | `/metrics` | Agrégation JSON : latence et tokens par nœud, compteurs de statuts |
@@ -64,8 +64,13 @@ END
 - Pipeline GitHub Actions (`.github/workflows/ci.yml`) : exécute la suite de tests puis construit l'image Docker à chaque push/PR.
 
 ## Conteneurisation & Déploiement
-- `Dockerfile` : image basée sur `python:3.11-slim`, expose l'API via `uvicorn` (`api:app`), port piloté par la variable `PORT` (compatibilité Render).
-- `render.yaml` : déploiement en tant que service Docker sur Render, avec `healthCheckPath: /health` et `GROQ_API_KEY` déclarée comme secret (non synchronisé, à saisir dans le dashboard Render).
+- `Dockerfile` : image basée sur `python:3.11-slim`, expose l'API via `uvicorn` (`api:app`), port piloté par la variable `PORT`.
+- **Déployé en production sur [Railway](https://railway.com/)** à partir du repo GitHub (build automatique du `Dockerfile` à chaque push sur `master`).
+  - **URL publique :** https://med-agent.up.railway.app
+  - **Dashboard monitoring :** https://med-agent.up.railway.app/dashboard
+  - **Documentation API (Swagger) :** https://med-agent.up.railway.app/docs
+  - `GROQ_API_KEY` configurée comme variable d'environnement dans Railway (onglet Variables), jamais committée dans Git.
+- `render.yaml` conservé dans le repo comme configuration alternative (Render exige une carte bancaire de vérification avant de créer un service, même gratuit — Railway a été retenu à la place pour ce déploiement).
 
 ## Limites / Garde-fous
 - **Ne pose JAMAIS de diagnostic définitif** (contrainte explicite dans `RESPONSE_PROMPT`)
