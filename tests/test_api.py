@@ -14,10 +14,18 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
-def test_root_redirects_to_dashboard():
+def test_root_redirects_to_ui():
     response = client.get("/", follow_redirects=False)
     assert response.status_code in (302, 307)
-    assert response.headers["location"] == "/dashboard"
+    assert response.headers["location"] == "/ui"
+
+
+def test_ui_endpoint_returns_html_form():
+    response = client.get("/ui")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "submitDiagnose" in response.text
+    assert "/diagnose" in response.text
 
 
 def test_diagnose_returns_report_awaiting_review():

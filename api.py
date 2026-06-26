@@ -2,9 +2,10 @@
 API FastAPI exposant le Medical-Supervisor-Agent.
 
 Flux :
+  GET  /ui                          -> interface utilisateur (formulaire symptomes -> reponse)
   POST /diagnose                    -> lance le graphe, s'arrete avant validation humaine
   POST /diagnose/{thread_id}/approve -> transmet la decision humaine, termine l'execution
-  GET  /health                      -> sonde de disponibilite (utilisee par Render)
+  GET  /health                      -> sonde de disponibilite (utilisee par Railway)
   GET  /runs/{correlation_id}       -> details de monitoring d'une execution
   GET  /runs                        -> liste des executions recentes
   GET  /metrics                     -> agregation latence/tokens/statuts (JSON)
@@ -19,6 +20,7 @@ from pydantic import BaseModel
 
 import monitoring
 from dashboard import render_dashboard
+from ui import render_ui
 from supervisor_langgraph import start_diagnosis, approve_diagnosis
 
 app = FastAPI(
@@ -40,7 +42,12 @@ class ApproveRequest(BaseModel):
 
 @app.get("/", include_in_schema=False)
 def root():
-    return RedirectResponse(url="/dashboard")
+    return RedirectResponse(url="/ui")
+
+
+@app.get("/ui", response_class=HTMLResponse)
+def ui():
+    return render_ui()
 
 
 @app.get("/health")
