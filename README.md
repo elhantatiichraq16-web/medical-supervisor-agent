@@ -19,7 +19,7 @@ Voir [AGENT_CARD.md](AGENT_CARD.md) et [RUNBOOK.md](RUNBOOK.md) pour la document
 - **Dashboard de monitoring :** https://med-agent.up.railway.app/dashboard
 - **Documentation API (Swagger) :** https://med-agent.up.railway.app/docs
 
-> Le dashboard est vide tant qu'aucune exécution n'a eu lieu depuis le dernier redémarrage du service (le monitoring est stocké en mémoire, pas en base de données). Lance le test ci-dessous pour le peupler.
+> Le monitoring est stocké dans **MongoDB** (persistant, survit aux redéploiements) si `MONGODB_URI` est configurée — sinon il repose sur un cache en mémoire qui repart à zéro à chaque redémarrage. Lance le test ci-dessous pour peupler le dashboard.
 
 ## Comment fonctionne l'agent
 
@@ -65,6 +65,8 @@ La réponse de l'étape 2 contient `risk_label` ("Haut" ou "Bas") et `final_aler
 - `GET /runs` — liste des exécutions récentes
 - `GET /runs/{correlation_id}` — détail nœud par nœud d'une exécution
 
-## Variable d'environnement requise
+## Variables d'environnement
 
-- `GROQ_API_KEY` — clé API Groq (console.groq.com/keys), configurée comme variable d'environnement dans Railway (onglet Variables), jamais committée dans Git.
+- `GROQ_API_KEY` (requise) — clé API Groq (console.groq.com/keys), configurée comme variable d'environnement dans Railway (onglet Variables), jamais committée dans Git.
+- `MONGODB_URI` (optionnelle, recommandée) — chaîne de connexion MongoDB Atlas (`mongodb+srv://...`) pour un monitoring persistant. Sans elle, le monitoring fonctionne quand même mais en mémoire (perdu au redémarrage).
+- `MONGODB_DB` (optionnelle) — nom de la base MongoDB à utiliser (défaut : `medical_supervisor_agent`).

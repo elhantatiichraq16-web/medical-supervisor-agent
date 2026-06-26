@@ -29,6 +29,7 @@ Signaux à surveiller :
 - Journal JSON (`save_json_log`) manquant ou incomplet pour une session
 - **Monitoring :** un événement de nœud avec `status: "error"` dans `GET /runs/{correlation_id}` (voir `monitoring.py`) — indique une exception non gérée dans un nœud du graphe
 - **API / déploiement :** `GET /health` (https://med-agent.up.railway.app/health) ne répond pas ou répond en erreur (le service Railway est down ou ne démarre pas — vérifier les logs de build/déploiement dans l'onglet Deployments de Railway)
+- **MongoDB indisponible :** si `MONGODB_URI` est configurée mais le cluster Atlas est inaccessible (réseau, identifiants expirés, cluster en pause), `monitoring.py` bascule silencieusement sur le cache en mémoire (`_build_backend()` capture l'exception) — l'agent continue de fonctionner mais perd la persistance. Vérifier le statut du cluster sur cloud.mongodb.com et le Network Access (IP whitelist) en cas de doute.
 
 ---
 

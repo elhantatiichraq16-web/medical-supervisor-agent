@@ -90,11 +90,17 @@ END
 ## Dépendances
 - **Modèle LLM :** Groq — `llama-3.1-8b-instant` (température 0.1)
 - **Framework :** LangGraph (`StateGraph`, `MemorySaver` pour checkpointing)
-- **Librairies :** `langchain_groq`, `langchain_core`
+- **Librairies :** `langchain_groq`, `langchain_core`, `pymongo`
+
+## Stockage du monitoring (persistance)
+- Le monitoring (`monitoring.py`) stocke chaque exécution dans **MongoDB** (collection `runs`) si la variable d'environnement `MONGODB_URI` est configurée — l'historique survit alors aux redémarrages/redéploiements du service.
+- Si `MONGODB_URI` est absente, ou si la connexion échoue au démarrage, le module bascule automatiquement sur un **cache en mémoire** (non persistant) — utilisé par défaut en développement local et dans les tests automatisés, sans nécessiter de base de données.
+- Index unique sur `correlation_id` créé automatiquement à la connexion (`_MongoBackend.__init__`).
 
 ## Configuration sensible
 - La clé API Groq est lue depuis la variable d'environnement `GROQ_API_KEY` (jamais codée en dur, voir `.env.example`).
-- En production (Render), `GROQ_API_KEY` est déclarée comme secret non synchronisé dans `render.yaml` — à saisir manuellement dans le dashboard Render, jamais committée dans Git.
+- La chaîne de connexion MongoDB (`MONGODB_URI`, format `mongodb+srv://...`) est lue depuis une variable d'environnement, jamais committée dans Git.
+- En production (Railway), `GROQ_API_KEY` et `MONGODB_URI` sont déclarées comme variables d'environnement dans l'onglet Variables de Railway.
 
 ## Contact / Responsable
 - **Mainteneur :** Ichrak Elhantati, Fatima Ezzahra ELMENOUN, Hassan Boulahfa

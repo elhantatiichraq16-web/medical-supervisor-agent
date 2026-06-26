@@ -5,41 +5,123 @@ Chaque appel a `start_run()` cree un correlation_id unique (UUID4).
 Tous les noeuds du graphe LangGraph appellent `log_event()` avec ce meme
 correlation_id, ce qui permet de retracer une execution complete
 (latence par noeud, erreurs, statut final) a partir d'un seul identifiant,
-y compris a travers l'API (header de reponse + endpoint /runs/{id}).
+y compris a travers l'API (endpoint /runs/{id}, /metrics, /dashboard).
+
+Stockage : MongoDB si la variable d'environnement MONGODB_URI est definie
+(persistant, survit aux redemarrages/redeploiements) — sinon repli
+automatique sur un cache en memoire (utilise par les tests et en
+developpement local sans base de donnees).
 """
 
-import json
 import os
 import uuid
 from datetime import datetime, timezone
 from threading import Lock
-
-MONITORING_DIR = os.path.join(os.path.dirname(__file__), "monitoring_logs")
-os.makedirs(MONITORING_DIR, exist_ok=True)
-
-_lock = Lock()
-_runs: dict = {}  # correlation_id -> liste d'evenements (cache memoire pour l'API)
 
 
 def new_correlation_id() -> str:
     return str(uuid.uuid4())
 
 
-def start_run(correlation_id: str, user_input: str) -> None:
-    with _lock:
-        _runs[correlation_id] = {
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class _MemoryBackend:
+    """Stockage en memoire (non persistant) — repli quand MONGODB_URI est absent."""
+
+    def __init__(self):
+        self._lock = Lock()
+        self._runs: dict = {}
+
+    def start_run(self, correlation_id: str, user_input: str) -> None:
+        with self._lock:
+            self._runs[correlation_id] = {
+                "correlation_id": correlation_id,
+                "started_at": _now(),
+                "user_input": user_input,
+                "status": "running",
+                "events": [],
+            }
+
+    def log_event(self, correlation_id: str, event: dict) -> None:
+        with self._lock:
+            if correlation_id in self._runs:
+                self._runs[correlation_id]["events"].append(event)
+
+    def end_run(self, correlation_id: str, status: str, summary: dict) -> None:
+        with self._lock:
+            if correlation_id in self._runs:
+                self._runs[correlation_id]["status"] = status
+                self._runs[correlation_id]["ended_at"] = _now()
+                self._runs[correlation_id]["summary"] = summary
+
+    def get_run(self, correlation_id: str) -> dict | None:
+        with self._lock:
+            return self._runs.get(correlation_id)
+
+    def list_runs(self) -> list:
+        with self._lock:
+            return list(self._runs.values())
+
+
+class _MongoBackend:
+    """Stockage persistant dans MongoDB (collection 'runs' de la base configuree)."""
+
+    def __init__(self, uri: str):
+        from pymongo import MongoClient
+
+        db_name = os.environ.get("MONGODB_DB", "medical_supervisor_agent")
+        self._client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        self._collection = self._client[db_name]["runs"]
+        self._collection.create_index("correlation_id", unique=True)
+
+    def start_run(self, correlation_id: str, user_input: str) -> None:
+        self._collection.insert_one({
             "correlation_id": correlation_id,
             "started_at": _now(),
             "user_input": user_input,
             "status": "running",
             "events": [],
-        }
-    _append_to_disk(correlation_id, {
-        "type": "run_started",
-        "correlation_id": correlation_id,
-        "timestamp": _now(),
-        "user_input": user_input,
-    })
+        })
+
+    def log_event(self, correlation_id: str, event: dict) -> None:
+        self._collection.update_one(
+            {"correlation_id": correlation_id},
+            {"$push": {"events": event}},
+        )
+
+    def end_run(self, correlation_id: str, status: str, summary: dict) -> None:
+        self._collection.update_one(
+            {"correlation_id": correlation_id},
+            {"$set": {"status": status, "ended_at": _now(), "summary": summary}},
+        )
+
+    def get_run(self, correlation_id: str) -> dict | None:
+        doc = self._collection.find_one({"correlation_id": correlation_id}, {"_id": 0})
+        return doc
+
+    def list_runs(self) -> list:
+        return list(self._collection.find({}, {"_id": 0}))
+
+
+def _build_backend():
+    uri = os.environ.get("MONGODB_URI", "").strip()
+    if not uri:
+        return _MemoryBackend()
+    try:
+        backend = _MongoBackend(uri)
+        backend._client.admin.command("ping")
+        return backend
+    except Exception:
+        return _MemoryBackend()
+
+
+_backend = _build_backend()
+
+
+def start_run(correlation_id: str, user_input: str) -> None:
+    _backend.start_run(correlation_id, user_input)
 
 
 def log_event(correlation_id: str, node: str, status: str, duration_ms: float, detail: str = "",
@@ -53,49 +135,33 @@ def log_event(correlation_id: str, node: str, status: str, duration_ms: float, d
         "tokens": tokens or {},
         "timestamp": _now(),
     }
-    with _lock:
-        if correlation_id in _runs:
-            _runs[correlation_id]["events"].append(event)
-    _append_to_disk(correlation_id, event)
+    _backend.log_event(correlation_id, event)
 
 
 def end_run(correlation_id: str, status: str, summary: dict) -> None:
-    with _lock:
-        if correlation_id in _runs:
-            _runs[correlation_id]["status"] = status
-            _runs[correlation_id]["ended_at"] = _now()
-            _runs[correlation_id]["summary"] = summary
-    _append_to_disk(correlation_id, {
-        "type": "run_ended",
-        "correlation_id": correlation_id,
-        "timestamp": _now(),
-        "status": status,
-        "summary": summary,
-    })
+    _backend.end_run(correlation_id, status, summary)
 
 
 def get_run(correlation_id: str) -> dict | None:
-    with _lock:
-        return _runs.get(correlation_id)
+    return _backend.get_run(correlation_id)
 
 
 def list_runs() -> list:
-    with _lock:
-        return [
-            {
-                "correlation_id": r["correlation_id"],
-                "status": r["status"],
-                "started_at": r["started_at"],
-                "nb_events": len(r["events"]),
-            }
-            for r in _runs.values()
-        ]
+    runs = _backend.list_runs()
+    return [
+        {
+            "correlation_id": r["correlation_id"],
+            "status": r["status"],
+            "started_at": r["started_at"],
+            "nb_events": len(r["events"]),
+        }
+        for r in runs
+    ]
 
 
 def get_metrics() -> dict:
     """Agrege latence et tokens sur l'ensemble des runs connus, par noeud."""
-    with _lock:
-        runs = list(_runs.values())
+    runs = _backend.list_runs()
 
     per_node: dict = {}
     total_tokens = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
@@ -128,13 +194,3 @@ def get_metrics() -> dict:
         "total_tokens": total_tokens,
         "per_node": per_node,
     }
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _append_to_disk(correlation_id: str, event: dict) -> None:
-    path = os.path.join(MONITORING_DIR, f"{correlation_id}.jsonl")
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
