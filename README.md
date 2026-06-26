@@ -84,6 +84,8 @@ Chaque exécution est enregistrée dans **MongoDB Atlas** :
 
 Si `MONGODB_URI` est absente ou la connexion échoue, le service bascule automatiquement (et silencieusement) sur un cache en mémoire — utile en développement local sans base de données, mais non persistant.
 
+![Collection runs dans MongoDB Atlas](docs/images/mongodb_collection_runs.png)
+
 ## Variables d'environnement
 
 - `GROQ_API_KEY` (requise) — clé API Groq (console.groq.com/keys), configurée comme variable d'environnement dans Railway (onglet Variables), jamais committée dans Git.
