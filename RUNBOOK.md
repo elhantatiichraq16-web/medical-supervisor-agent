@@ -1,6 +1,6 @@
 # Runbook — Medical-Supervisor-Agent
 
-Document opérationnel décrivant la gestion des incidents, le kill-switch et la procédure de rollback pour l'agent `Medical-Supervisor-Agent` (v1.0.0).
+Document opérationnel décrivant la gestion des incidents, le kill-switch et la procédure de rollback pour l'agent `Medical-Supervisor-Agent` (v1.1.0, déployé via Docker/Render).
 
 ---
 
@@ -13,6 +13,7 @@ Objectif : désactiver immédiatement l'agent si un comportement dangereux ou in
 2. Si déployé comme service, basculer une variable d'environnement `AGENT_ENABLED=false` lue au démarrage du process et stopper le service (`systemctl stop` / arrêt du conteneur / arrêt du process Python).
 3. Bloquer le point d'entrée du graphe LangGraph (`StateGraph.compile()`) pour empêcher toute nouvelle invocation tant que l'incident n'est pas résolu.
 4. Informer les utilisateurs/patients que le service est temporairement indisponible.
+5. **Sur Render :** suspendre le service (dashboard Render → Suspend) ou retirer la variable d'environnement `GROQ_API_KEY` pour forcer l'échec au démarrage du conteneur.
 
 **Délai cible :** kill-switch actionnable en moins de 5 minutes.
 
@@ -26,6 +27,8 @@ Signaux à surveiller :
 - Le pipeline ne s'arrête pas au point `human-in-the-loop` (`interrupt_before` non respecté)
 - Erreurs API répétées du modèle Groq (timeout, quota dépassé, clé invalide)
 - Journal JSON (`save_json_log`) manquant ou incomplet pour une session
+- **Monitoring :** un événement de nœud avec `status: "error"` dans `GET /runs/{correlation_id}` (voir `monitoring.py`) — indique une exception non gérée dans un nœud du graphe
+- **API / déploiement :** `GET /health` ne répond pas ou répond en erreur (le service Render est down ou ne démarre pas — vérifier les logs de build/déploiement Render)
 
 ---
 
@@ -59,3 +62,5 @@ Signaux à surveiller :
 - Ne jamais committer de clé API en dur dans le code (voir `AGENT_CARD.md`, section configuration sensible)
 - Toujours tester sur le tag stable avant de merger une évolution de prompt
 - Garder le `MemorySaver` (checkpointing) actif pour pouvoir auditer/reproduire une session incidentée
+- Ne jamais merger sur `main` sans que la CI GitHub Actions (`.github/workflows/ci.yml`) soit verte (tests + build Docker)
+- Toujours consulter `GET /runs/{correlation_id}` en premier réflexe lors d'un incident signalé par un utilisateur — il donne le détail nœud par nœud (statut, latence) de l'exécution concernée

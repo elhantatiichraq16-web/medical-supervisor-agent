@@ -30,6 +30,7 @@ Flux complet :
 import json
 import re
 import os
+import time
 from datetime import datetime
 from typing import TypedDict, Annotated
 
@@ -37,6 +38,8 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+
+import monitoring
 
 # Journal JSON global — rempli par chaque noeud pendant l'execution
 _node_journal: list = []
@@ -74,6 +77,9 @@ def keep_last(a, b):
     return b
 
 class SupervisorState(TypedDict):
+    # monitoring — identifiant unique propage a tous les noeuds
+    correlation_id: str
+
     # entree utilisateur
     user_input: str
 
@@ -250,10 +256,31 @@ def step(tag: str, msg: str):
     print(f"\n  [{tag}] {msg}")
 
 
+def monitored(node_name: str):
+    """Decorateur : mesure la duree d'un noeud et l'enregistre dans le
+    monitoring (Correlation ID), en plus du journal JSON existant."""
+    def decorator(fn):
+        def wrapper(state: SupervisorState):
+            correlation_id = state.get("correlation_id", "")
+            t0 = time.perf_counter()
+            try:
+                result = fn(state)
+                duration_ms = (time.perf_counter() - t0) * 1000
+                monitoring.log_event(correlation_id, node_name, "ok", duration_ms)
+                return result
+            except Exception as exc:
+                duration_ms = (time.perf_counter() - t0) * 1000
+                monitoring.log_event(correlation_id, node_name, "error", duration_ms, detail=str(exc))
+                raise
+        return wrapper
+    return decorator
+
+
 # ===========================================================
 # 5. NOEUDS DU GRAPHE
 # ===========================================================
 
+@monitored("supervisor")
 def supervisor_node(state: SupervisorState) -> SupervisorState:
     """GroqModel-etZFh : Supervisor — decide quels agents activer."""
     step("SUPERVISOR", "Analyse de la demande patient...")
@@ -291,6 +318,7 @@ def supervisor_node(state: SupervisorState) -> SupervisorState:
     }
 
 
+@monitored("symptoms")
 def symptoms_node(state: SupervisorState) -> dict:
     """GroqModel-FYDy9 : Symptoms Agent."""
     if not state.get("activate_symptoms", True):
@@ -308,6 +336,7 @@ def symptoms_node(state: SupervisorState) -> dict:
     return {"symptoms_result": response.content}
 
 
+@monitored("risk")
 def risk_node(state: SupervisorState) -> dict:
     """GroqModel-ummXV : Risk Agent."""
     if not state.get("activate_risk", True):
@@ -325,6 +354,7 @@ def risk_node(state: SupervisorState) -> dict:
     return {"risk_result": response.content}
 
 
+@monitored("history")
 def history_node(state: SupervisorState) -> dict:
     """GroqModel-xw3jS : Medical History Agent."""
     if not state.get("activate_history", True):
@@ -342,6 +372,7 @@ def history_node(state: SupervisorState) -> dict:
     return {"history_result": response.content}
 
 
+@monitored("combine")
 def combine_node(state: SupervisorState) -> SupervisorState:
     """DataOperations + ParserComponent : fusion des 3 resultats."""
     step("COMBINE", "Fusion des resultats des 3 agents...")
@@ -362,6 +393,7 @@ def combine_node(state: SupervisorState) -> SupervisorState:
     return {**state, "combined_text": combined}
 
 
+@monitored("final_response")
 def response_node(state: SupervisorState) -> SupervisorState:
     """GroqModel-QQ1QZ : Healthcare Response Agent — rapport structure."""
     step("HEALTHCARE RESPONSE", "Generation du rapport medical...")
@@ -378,6 +410,7 @@ def response_node(state: SupervisorState) -> SupervisorState:
     return {**state, "final_response": response.content}
 
 
+@monitored("human_review")
 def human_review_node(state: SupervisorState) -> SupervisorState:
     """
     HUMAN-IN-THE-LOOP
@@ -393,6 +426,7 @@ def human_review_node(state: SupervisorState) -> SupervisorState:
     return {**state, "human_approved": True}
 
 
+@monitored("audit")
 def audit_node(state: SupervisorState) -> SupervisorState:
     """Prompt-PeQ6f + GroqModel-gkoZc : Audit Agent — coherence du risque."""
     step("AUDIT AGENT", "Verification de la coherence du niveau de risque...")
@@ -407,6 +441,7 @@ def audit_node(state: SupervisorState) -> SupervisorState:
     return {**state, "audit_result": response.content}
 
 
+@monitored("risk_extractor")
 def risk_extractor_node(state: SupervisorState) -> SupervisorState:
     """Prompt-glNjT + GroqModel-pebJk : Risk Extractor — extrait Haut ou Bas."""
     step("RISK EXTRACTOR", "Extraction du label de risque (Haut / Bas)...")
@@ -430,6 +465,7 @@ def risk_extractor_node(state: SupervisorState) -> SupervisorState:
     return {**state, "risk_label": label}
 
 
+@monitored("high_risk_alert")
 def high_risk_alert_node(state: SupervisorState) -> SupervisorState:
     """GroqModel-aRMzd : alerte URGENT."""
     banner("ALERTE RISQUE ELEVE", char="!")
@@ -441,6 +477,7 @@ def high_risk_alert_node(state: SupervisorState) -> SupervisorState:
     return {**state, "final_alert": HIGH_RISK_SYSTEM}
 
 
+@monitored("low_risk_alert")
 def low_risk_alert_node(state: SupervisorState) -> SupervisorState:
     """GroqModel-G6oOV : alerte PAS URGENT."""
     banner("ALERTE RISQUE FAIBLE", char="-")
@@ -520,6 +557,105 @@ def build_graph():
 
 
 # ===========================================================
+# 6bis. API HELPERS — utilises par api.py (FastAPI)
+# ===========================================================
+#
+# Le graphe est compile UNE SEULE FOIS et partage entre les requetes HTTP,
+# car le MemorySaver (checkpointer) doit conserver l'etat d'un thread_id
+# entre l'appel POST /diagnose (qui s'arrete a interrupt_before=human_review)
+# et l'appel POST /diagnose/{thread_id}/approve (qui reprend l'execution).
+
+_api_graph = None
+
+def get_api_graph():
+    global _api_graph
+    if _api_graph is None:
+        _api_graph = build_graph()
+    return _api_graph
+
+
+def start_diagnosis(user_message: str, thread_id: str) -> dict:
+    """Lance le graphe jusqu'au point d'arret human-in-the-loop.
+    Retourne le rapport genere, en attente d'approbation."""
+    correlation_id = monitoring.new_correlation_id()
+    monitoring.start_run(correlation_id, user_message)
+    reset_journal()
+
+    graph = get_api_graph()
+    config = {"configurable": {"thread_id": thread_id}}
+
+    initial: SupervisorState = {
+        "correlation_id":    correlation_id,
+        "user_input":        user_message,
+        "activate_symptoms": True,
+        "activate_risk":     True,
+        "activate_history":  True,
+        "supervisor_reason": "",
+        "symptoms_result":   "",
+        "risk_result":       "",
+        "history_result":    "",
+        "combined_text":     "",
+        "final_response":    "",
+        "human_approved":    False,
+        "human_comment":     "",
+        "audit_result":      "",
+        "risk_label":        "",
+        "final_alert":       "",
+    }
+
+    for _ in graph.stream(initial, config, stream_mode="values"):
+        pass
+
+    snapshot = graph.get_state(config)
+    return {
+        "thread_id": thread_id,
+        "correlation_id": correlation_id,
+        "final_response": snapshot.values.get("final_response", ""),
+        "supervisor_reason": snapshot.values.get("supervisor_reason", ""),
+        "status": "awaiting_human_review",
+    }
+
+
+def approve_diagnosis(thread_id: str, approved: bool, comment: str = "") -> dict:
+    """Reprend l'execution apres la decision humaine (human-in-the-loop)."""
+    graph = get_api_graph()
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = graph.get_state(config)
+    correlation_id = snapshot.values.get("correlation_id", "")
+
+    graph.update_state(config, {
+        "human_approved": approved,
+        "human_comment":  comment,
+    })
+
+    if not approved:
+        monitoring.end_run(correlation_id, "rejected", {"thread_id": thread_id})
+        return {
+            "thread_id": thread_id,
+            "correlation_id": correlation_id,
+            "status": "rejected",
+        }
+
+    for _ in graph.stream(None, config, stream_mode="values"):
+        pass
+
+    final = graph.get_state(config).values
+    monitoring.end_run(correlation_id, "completed", {
+        "risk_label": final.get("risk_label", ""),
+        "final_alert": final.get("final_alert", ""),
+    })
+
+    return {
+        "thread_id": thread_id,
+        "correlation_id": correlation_id,
+        "status": "completed",
+        "risk_label": final.get("risk_label", ""),
+        "final_alert": final.get("final_alert", ""),
+        "final_response": final.get("final_response", ""),
+    }
+
+
+# ===========================================================
 # 7. LOGGING
 # ===========================================================
 
@@ -544,7 +680,8 @@ def write_log(path: str, text: str):
 # 8. EXECUTION D'UN CAS PATIENT
 # ===========================================================
 
-def run(user_message: str, thread_id: str, log_path: str, json_dir: str, mode: str = "auto"):
+def run(user_message: str, thread_id: str, log_path: str, json_dir: str, mode: str = "auto",
+        correlation_id: str = ""):
     """
     mode='auto'   : validation humaine simulee automatiquement
     mode='manual' : l'utilisateur saisit sa reponse au clavier
@@ -552,8 +689,11 @@ def run(user_message: str, thread_id: str, log_path: str, json_dir: str, mode: s
     Produit :
       - entrees dans log_path (.log)
       - un fichier JSON par noeud dans json_dir/
+      - un journal de monitoring par correlation_id (monitoring_logs/)
     """
     reset_journal()
+    correlation_id = correlation_id or monitoring.new_correlation_id()
+    monitoring.start_run(correlation_id, user_message)
     graph = build_graph()
     config = {"configurable": {"thread_id": thread_id}}
     t0 = datetime.now()
@@ -566,6 +706,7 @@ def run(user_message: str, thread_id: str, log_path: str, json_dir: str, mode: s
     write_log(log_path, f"{'='*62}")
 
     initial: SupervisorState = {
+        "correlation_id":    correlation_id,
         "user_input":        user_message,
         "activate_symptoms": True,
         "activate_risk":     True,
@@ -628,6 +769,7 @@ def run(user_message: str, thread_id: str, log_path: str, json_dir: str, mode: s
         json_path = os.path.join(json_dir, f"{thread_id}_REFUSE.json")
         save_json_log(json_path, thread_id, user_message)
         print(f"  [JSON] Log noeuds : {json_path}")
+        monitoring.end_run(correlation_id, "rejected", {"thread_id": thread_id})
         return None
 
     # --- Phase 3 : Audit + Risk Extractor + SmartRouter + Alerte ---
@@ -659,6 +801,12 @@ def run(user_message: str, thread_id: str, log_path: str, json_dir: str, mode: s
     write_log(log_path, f"JSON noeuds       : {json_path}")
     print(f"\n  [JSON] Log noeuds sauvegarde : {json_path}")
 
+    monitoring.end_run(correlation_id, "completed", {
+        "risk_label": final.get("risk_label", ""),
+        "final_alert": final.get("final_alert", ""),
+        "duree_s": duree,
+    })
+    final["correlation_id"] = correlation_id
     return final
 
 

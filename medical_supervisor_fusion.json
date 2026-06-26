@@ -1,0 +1,390 @@
+{
+  "name": "Medical Supervisor Agent - LAB",
+  "variables": {},
+  "secrets": {},
+  "nodes": [
+    {
+      "position": { "x": 80, "y": 300 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-chat-input",
+      "type": "trigger",
+      "data": {
+        "description": "Receives the patient message that starts the workflow",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "chat-input",
+        "label": "ChatInput",
+        "inputs": {},
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {},
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 280, "y": 300 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-supervisor-llm",
+      "type": "agent-llm",
+      "data": {
+        "description": "LLM backing the Supervisor Agent",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "groq-llm",
+        "label": "Supervisor LLM",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "model": "llama-3.1-8b-instant",
+          "apiKey": "{{secrets.GROQ_API_KEY}}"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 280, "y": 420 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-supervisor-agent",
+      "type": "agent",
+      "data": {
+        "description": "Decides which specialized agents to activate based on the patient message",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "agent",
+        "label": "Supervisor Agent",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "threadId": "1",
+          "systemPrompt": "You are a Supervisor Agent coordinating a medical multi-agent system.\n\nAvailable agents:\n- Symptoms_Agent : analyzes symptoms\n- Risk_Agent : evaluates risk level\n- Medical_History_Agent : reviews medical history\n\nPatient message: {{outputs.ChatInput.success.message}}\n\nDecide which agents to activate based on the patient message.\nReturn ONLY valid JSON - no explanation, no markdown.\n\n{\"activate_symptom_agent\": true, \"activate_risk_agent\": true, \"activate_medical_history_agent\": true, \"reason\": \"short justification here\"}"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 500, "y": 120 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-symptoms-agent",
+      "type": "agent",
+      "data": {
+        "description": "Analyzes the patient's symptoms",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "agent",
+        "label": "Symptoms_Agent",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "threadId": "1",
+          "systemPrompt": "You are a Symptoms Analysis Agent.\nAnalyze the patient description and extract key medical information.\nPatient message: {{outputs.ChatInput.success.message}}\nReturn ONLY valid JSON.\n\n{\"symptoms\": [\"symptom1\", \"symptom2\"], \"duration\": \"X days\", \"severity\": \"low|moderate|high\", \"observations\": \"any important notes\"}"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 500, "y": 300 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-risk-agent",
+      "type": "agent",
+      "data": {
+        "description": "Evaluates the patient's risk level",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "agent",
+        "label": "Risk_Agent",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "threadId": "1",
+          "systemPrompt": "You are a Risk Assessment Agent.\nEvaluate the patient's risk level based on described symptoms.\nPatient message: {{outputs.ChatInput.success.message}}\nReturn ONLY valid JSON.\n\n{\"risk_level\": \"low|medium|high\", \"reason\": \"brief justification\"}"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 500, "y": 480 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-history-agent",
+      "type": "agent",
+      "data": {
+        "description": "Reviews the patient's medical history",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "agent",
+        "label": "Medical_History_Agent",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "threadId": "1",
+          "systemPrompt": "You are a Medical History Analysis Agent.\nIdentify chronic conditions, past illnesses, and risk factors.\nPatient message: {{outputs.ChatInput.success.message}}\nReturn ONLY valid JSON.\n\n{\"chronic_conditions\": [\"condition1\"], \"previous_conditions\": [\"illness1\"], \"risk_factors\": [\"factor1\"]}"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 720, "y": 300 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-combine",
+      "type": "action",
+      "data": {
+        "description": "Combines the outputs of the three parallel agents into a single payload",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "function",
+        "label": "Combine",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "code": "return {\n  symptoms: outputs.Symptoms_Agent && outputs.Symptoms_Agent.success,\n  risk: outputs.Risk_Agent && outputs.Risk_Agent.success,\n  history: outputs.Medical_History_Agent && outputs.Medical_History_Agent.success\n};\n"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 920, "y": 300 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-response-agent",
+      "type": "agent",
+      "data": {
+        "description": "Generates the structured healthcare report from the combined analysis",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "agent",
+        "label": "Healthcare Response Agent",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "threadId": "1",
+          "systemPrompt": "You are a Healthcare Response Agent.\n\nYou receive the combined output of three medical analysis agents:\n{{outputs.Combine.success}}\n\nGenerate a clear, structured health summary for the patient.\n\nRules:\n- Do NOT give a definitive diagnosis.\n- Be professional and concise.\n- Always recommend seeing a doctor when appropriate.\n\nFormat your response exactly like this:\n\nPatient Summary:\n[summary of symptoms]\n\nMedical History:\n[relevant history]\n\nRisk Level:\n[assessed risk with justification]\n\nRecommendations:\n[actionable next steps]"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 1120, "y": 180 },
+      "width": 256,
+      "height": 100,
+      "dragHandle": ".drag-handle__custom",
+      "selected": false,
+      "id": "node-human-review",
+      "type": "display",
+      "data": {
+        "description": "Human-in-the-loop checkpoint: the report is held here for human approval before continuing",
+        "showRunningStatus": false,
+        "_morphing": false,
+        "name": "media-log",
+        "label": "Human Review (approve/modify)",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": { "success": { "label": "Success", "isConnectable": false } },
+        "parameters": {},
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 1120, "y": 380 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-audit-agent",
+      "type": "agent",
+      "data": {
+        "description": "Audits the report for consistency of the risk level before final routing",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "agent",
+        "label": "Audit Agent",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "threadId": "1",
+          "systemPrompt": "Role: Expert en audit de systemes IA sante.\nVerifie la coherence du rapport ci-dessous avec le niveau de risque annonce.\nRapport: {{outputs.Healthcare_Response_Agent.success.text}}\nReturn ONLY valid JSON: {\"coherent\": true|false, \"risk_label\": \"Haut|Bas\", \"comment\": \"...\"}"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 1320, "y": 380 },
+      "width": 64,
+      "height": 68,
+      "selected": false,
+      "id": "node-smart-router",
+      "type": "utility",
+      "data": {
+        "description": "Routes to High Risk Alert or Low Risk Alert based on the audited risk label",
+        "showRunningStatus": false,
+        "_morphing": false,
+        "name": "if-else",
+        "label": "SmartRouter",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "true": { "label": "True", "isConnectable": null },
+          "false": { "label": "False", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "condition": "{{outputs.Audit_Agent.success.message.risk_label}} == \"Haut\""
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 1540, "y": 280 },
+      "width": 256,
+      "height": 100,
+      "dragHandle": ".drag-handle__custom",
+      "selected": false,
+      "id": "node-high-risk-alert",
+      "type": "display",
+      "data": {
+        "description": "URGENT : Le patient doit visiter le medecin.",
+        "showRunningStatus": false,
+        "_morphing": false,
+        "name": "media-log",
+        "label": "High Risk Alert",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": { "success": { "label": "Success", "isConnectable": false } },
+        "parameters": {},
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 1540, "y": 460 },
+      "width": 256,
+      "height": 100,
+      "dragHandle": ".drag-handle__custom",
+      "selected": false,
+      "id": "node-low-risk-alert",
+      "type": "display",
+      "data": {
+        "description": "PAS URGENT : Vous pouvez suivre la prospection.",
+        "showRunningStatus": false,
+        "_morphing": false,
+        "name": "media-log",
+        "label": "Low Risk Alert",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": { "success": { "label": "Success", "isConnectable": false } },
+        "parameters": {},
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    },
+    {
+      "position": { "x": 1780, "y": 370 },
+      "width": 64,
+      "height": 64,
+      "selected": false,
+      "id": "node-chat-output",
+      "type": "action",
+      "data": {
+        "description": "Final output node back to the user",
+        "showRunningStatus": true,
+        "_morphing": false,
+        "name": "function",
+        "label": "ChatOutput",
+        "inputs": { "input": { "label": "Input" } },
+        "outputs": {
+          "success": { "label": "Success", "isConnectable": null },
+          "error": { "label": "Error", "isConnectable": null }
+        },
+        "parameters": {
+          "code": "return input;\n"
+        },
+        "defaultOutput": null
+      },
+      "inputs": null,
+      "outputs": null
+    }
+  ],
+  "connections": [
+    { "type": "directed", "id": "edge-chatinput-supervisor", "data": { "isAnimated": false }, "source": "node-chat-input", "target": "node-supervisor-agent", "sourceHandle": "success", "targetHandle": "input" },
+    { "type": "agentConnection", "id": "edge-supervisorllm-supervisor", "data": { "isAnimated": false }, "source": "node-supervisor-llm", "target": "node-supervisor-agent", "sourceHandle": "llm", "targetHandle": "llm" },
+
+    { "type": "directed", "id": "edge-supervisor-symptoms", "data": { "isAnimated": false }, "source": "node-supervisor-agent", "target": "node-symptoms-agent", "sourceHandle": "success", "targetHandle": "input" },
+    { "type": "directed", "id": "edge-supervisor-risk", "data": { "isAnimated": false }, "source": "node-supervisor-agent", "target": "node-risk-agent", "sourceHandle": "success", "targetHandle": "input" },
+    { "type": "directed", "id": "edge-supervisor-history", "data": { "isAnimated": false }, "source": "node-supervisor-agent", "target": "node-history-agent", "sourceHandle": "success", "targetHandle": "input" },
+
+    { "type": "directed", "id": "edge-symptoms-combine", "data": { "isAnimated": false }, "source": "node-symptoms-agent", "target": "node-combine", "sourceHandle": "success", "targetHandle": "input" },
+    { "type": "directed", "id": "edge-risk-combine", "data": { "isAnimated": false }, "source": "node-risk-agent", "target": "node-combine", "sourceHandle": "success", "targetHandle": "input" },
+    { "type": "directed", "id": "edge-history-combine", "data": { "isAnimated": false }, "source": "node-history-agent", "target": "node-combine", "sourceHandle": "success", "targetHandle": "input" },
+
+    { "type": "directed", "id": "edge-combine-response", "data": { "isAnimated": false }, "source": "node-combine", "target": "node-response-agent", "sourceHandle": "success", "targetHandle": "input" },
+
+    { "type": "directed", "id": "edge-response-humanreview", "data": { "isAnimated": false }, "source": "node-response-agent", "target": "node-human-review", "sourceHandle": "success", "targetHandle": "input" },
+    { "type": "directed", "id": "edge-humanreview-audit", "data": { "isAnimated": false }, "source": "node-human-review", "target": "node-audit-agent", "sourceHandle": "success", "targetHandle": "input" },
+
+    { "type": "directed", "id": "edge-audit-router", "data": { "isAnimated": false }, "source": "node-audit-agent", "target": "node-smart-router", "sourceHandle": "success", "targetHandle": "input" },
+
+    { "type": "directed", "id": "edge-router-highrisk", "data": { "isAnimated": false }, "source": "node-smart-router", "target": "node-high-risk-alert", "sourceHandle": "true", "targetHandle": "input" },
+    { "type": "directed", "id": "edge-router-lowrisk", "data": { "isAnimated": false }, "source": "node-smart-router", "target": "node-low-risk-alert", "sourceHandle": "false", "targetHandle": "input" },
+
+    { "type": "directed", "id": "edge-highrisk-output", "data": { "isAnimated": false }, "source": "node-high-risk-alert", "target": "node-chat-output", "sourceHandle": "success", "targetHandle": "input" },
+    { "type": "directed", "id": "edge-lowrisk-output", "data": { "isAnimated": false }, "source": "node-low-risk-alert", "target": "node-chat-output", "sourceHandle": "success", "targetHandle": "input" }
+  ]
+}

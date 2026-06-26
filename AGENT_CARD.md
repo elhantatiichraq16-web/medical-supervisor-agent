@@ -2,11 +2,12 @@
 
 ## Identité
 - **Nom :** Medical-Supervisor-Agent
-- **Version :** 1.0.0
+- **Version :** 1.1.0
 - **Type :** Système multi-agent (pattern Supervisor) avec orchestration LangGraph
 - **Auteur :** Ichrak Elhantati
 - **Date de création :** 2026-06-24
-- **Fichier source :** `supervisor_langgraph.py`
+- **Dernière mise à jour :** 2026-06-26 (ajout monitoring, API, CI/CD, déploiement)
+- **Fichiers source :** `supervisor_langgraph.py` (graphe + logique métier), `api.py` (API FastAPI), `monitoring.py` (Correlation ID / observabilité)
 
 ## Description
 Agent conversationnel médical qui reçoit la description d'un patient, décide dynamiquement quels sous-agents spécialisés activer (symptômes, risque, antécédents), combine leurs analyses en un rapport structuré, le soumet à validation humaine, puis route une alerte finale selon le niveau de risque détecté.
@@ -44,6 +45,25 @@ END
 - Point d'arrêt humain obligatoire avant diffusion du rapport (`human_approved`, `human_comment`)
 - Audit automatique de cohérence avant le routage final
 - Journalisation complète de chaque nœud (entrée/sortie/timestamp) via `log_node()`
+- **Observabilité / monitoring :** chaque exécution reçoit un `correlation_id` (UUID) unique, propagé à tous les nœuds du graphe (`monitoring.py`). Chaque nœud loggue son statut (`ok`/`error`) et sa latence (`duration_ms`), consultable via l'API (`GET /runs/{correlation_id}`) ou en JSONL (`monitoring_logs/`).
+- **Exposition API :** l'agent est accessible via une API FastAPI (`api.py`) qui orchestre le flux human-in-the-loop en deux appels (`POST /diagnose` puis `POST /diagnose/{thread_id}/approve`).
+
+## API
+| Méthode | Route | Description |
+|---|---|---|
+| `POST` | `/diagnose` | Lance le graphe (Supervisor + 3 sous-agents + rapport), s'arrête avant validation humaine |
+| `POST` | `/diagnose/{thread_id}/approve` | Transmet la décision humaine (`approved`, `comment`) et termine l'exécution (audit, routage, alerte) |
+| `GET` | `/health` | Sonde de disponibilité (utilisée par Render) |
+| `GET` | `/runs` | Liste des exécutions (monitoring) |
+| `GET` | `/runs/{correlation_id}` | Détail d'une exécution : événements par nœud, statut, durée |
+
+## Tests & CI/CD
+- Tests automatisés (`pytest`, dossier `tests/`) : nœuds du graphe, monitoring, et endpoints API — LLM Groq mocké pour ne pas dépendre du réseau/quota.
+- Pipeline GitHub Actions (`.github/workflows/ci.yml`) : exécute la suite de tests puis construit l'image Docker à chaque push/PR.
+
+## Conteneurisation & Déploiement
+- `Dockerfile` : image basée sur `python:3.11-slim`, expose l'API via `uvicorn` (`api:app`), port piloté par la variable `PORT` (compatibilité Render).
+- `render.yaml` : déploiement en tant que service Docker sur Render, avec `healthCheckPath: /health` et `GROQ_API_KEY` déclarée comme secret (non synchronisé, à saisir dans le dashboard Render).
 
 ## Limites / Garde-fous
 - **Ne pose JAMAIS de diagnostic définitif** (contrainte explicite dans `RESPONSE_PROMPT`)
@@ -64,8 +84,9 @@ END
 - **Framework :** LangGraph (`StateGraph`, `MemorySaver` pour checkpointing)
 - **Librairies :** `langchain_groq`, `langchain_core`
 
-## Configuration sensible — ⚠️ À CORRIGER AVANT v1.0.0
-> **Problème de sécurité détecté :** la clé API Groq est actuellement codée en dur dans `supervisor_langgraph.py` (ligne ~109). Avant de tagger v1.0.0, déplacer cette clé dans une variable d'environnement (`GROQ_API_KEY`) et ne jamais la committer dans Git.
+## Configuration sensible
+- La clé API Groq est lue depuis la variable d'environnement `GROQ_API_KEY` (jamais codée en dur, voir `.env.example`).
+- En production (Render), `GROQ_API_KEY` est déclarée comme secret non synchronisé dans `render.yaml` — à saisir manuellement dans le dashboard Render, jamais committée dans Git.
 
 ## Contact / Responsable
 - **Mainteneur :** Ichrak Elhantati
