@@ -96,5 +96,5 @@ END
 - En production (Render), `GROQ_API_KEY` est déclarée comme secret non synchronisé dans `render.yaml` — à saisir manuellement dans le dashboard Render, jamais committée dans Git.
 
 ## Contact / Responsable
-- **Mainteneur :** Ichrak Elhantati
+- **Mainteneur :** Ichrak Elhantati, Fatima Ezzahra ELMENOUN, Hassan Boulahfa
 - **Contact :** elhantatiichraq16@gmail.com
